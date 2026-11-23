@@ -135,4 +135,3 @@ plugin_manager install_bundle target=/绝对路径/dsh-prompt-vault
 
 边界：复制只写剪贴板，不能直接插入输入框；没有多设备同步；删除不可撤销；单库上限 1000 条。
 
-深度复盘（WHY / HOW / 知识沉淀）：[从自用到开源](docs/项目复盘_从自用到开源_2026-11-23.md)。
