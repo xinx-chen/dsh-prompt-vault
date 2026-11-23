@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Prompt Vault",
+    "description": "Save reusable prompts and distill the prompt patterns you keep reusing from conversations, with search, tags, favorites, and one-click copy.",
+    "detail": "docs/DETAIL.en.md"
+  }
+}

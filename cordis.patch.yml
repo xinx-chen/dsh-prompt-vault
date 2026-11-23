@@ -1,0 +1,3 @@
+- insert:
+    - id: prompt-vault
+      name: dsh-prompt-vault
