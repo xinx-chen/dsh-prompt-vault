@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import http from 'node:http'
 import { join } from 'node:path'
-import { PromptVault } from '../host-vault.js'
-import { createHandler, PREFIX } from '../host-routes.js'
+import { PromptVault } from '../src/host-vault.js'
+import { createHandler, PREFIX } from '../src/host-routes.js'
 import { withTempDir } from './helpers.js'
 
 async function withServer(fn) {

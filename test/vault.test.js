@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { PromptVault, LIMITS } from '../host-vault.js'
+import { PromptVault, LIMITS } from '../src/host-vault.js'
 import { withTempDir } from './helpers.js'
 
 function fixedClock(start = 1_700_000_000_000) {

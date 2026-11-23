@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-11-23
+
+Structure-only release; no runtime behavior change.
+
+- Moved runtime code to `src/` and the icon to `assets/`; updated `exports`, `main`, `files`, test imports, and the check script.
+- Added `src/README.md` (module map) and `docs/README.md` (documentation index).
+- Added the project retrospective: `docs/项目复盘_从自用到开源_2026-11-23.md`.
+
 ## 0.2.0 — 2026-11-23
 
 First public release.

@@ -1,10 +1,10 @@
 # Prompt Vault
 
-![Prompt Vault icon](icon.svg)
+![Prompt Vault icon](assets/icon.svg)
 
 A local-first prompt library for [DeepSeek Harness](https://github.com/deepseek-ai) (DSH). Save the prompts you actually reuse, and let the agent distill new ones from your conversations — deduplicated, tagged, and searchable in one sidebar page.
 
-[中文说明](#中文说明) · [Install](#install) · [Usage](#usage) · [Data and privacy](#data-and-privacy) · [Compatibility](#compatibility)
+[中文说明](#中文说明) · [Install](#install) · [Usage](#usage) · [Data and privacy](#data-and-privacy) · [Compatibility](#compatibility) · [Why / How](docs/项目复盘_从自用到开源_2026-11-23.md)
 
 ## What it does
 
@@ -87,13 +87,14 @@ Source layout:
 
 | File | Responsibility |
 |---|---|
-| `index.js` | Host entry: route, tool, skill, prompt section |
-| `host-vault.js` | JSON storage, validation, atomic writes, corrupt recovery |
-| `host-routes.js` | Same-origin `/prompt-vault` route |
-| `host-tool.js` | `prompt_vault` tool |
-| `host-skill.js` | extraction skill and per-turn hint |
-| `client.js` | sidebar icon and full page (React, no JSX) |
+| `src/index.js` | Host entry: route, tool, skill, prompt section |
+| `src/host-vault.js` | JSON storage, validation, atomic writes, corrupt recovery |
+| `src/host-routes.js` | Same-origin `/prompt-vault` route |
+| `src/host-tool.js` | `prompt_vault` tool |
+| `src/host-skill.js` | extraction skill and per-turn hint |
+| `src/client.js` | sidebar icon and full page (React, no JSX) |
 | `locale/*.json` | plugin metadata (title, description, detail page) |
+| `docs/` | user detail pages + the WHY/HOW/knowledge retrospective |
 
 Design notes:
 
@@ -132,3 +133,5 @@ plugin_manager install_bundle target=/绝对路径/dsh-prompt-vault
 装好后侧边栏出现书签图标；没出现就刷新一次窗口。兼容 DSH `0.2.3-alpha.2` 及以上。
 
 边界：复制只写剪贴板，不能直接插入输入框；没有多设备同步；删除不可撤销；单库上限 1000 条。
+
+深度复盘（WHY / HOW / 知识沉淀）：[从自用到开源](docs/项目复盘_从自用到开源_2026-11-23.md)。

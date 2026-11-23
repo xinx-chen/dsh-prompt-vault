@@ -1,6 +1,6 @@
 {
   "name": "dsh-prompt-vault",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A local-first prompt vault for DeepSeek Harness: save reusable prompts, distill recurring patterns from conversations, search, tag, favorite, and copy.",
   "license": "MIT",
   "author": "xinx-chen",
@@ -27,27 +27,22 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check index.js && node --check host-vault.js && node --check host-routes.js && node --check host-tool.js && node --check host-skill.js && node --check client.js"
+    "check": "node --check src/index.js && node --check src/host-vault.js && node --check src/host-routes.js && node --check src/host-tool.js && node --check src/host-skill.js && node --check src/client.js"
   },
   "exports": {
-    ".": "./index.js",
-    "./client": "./client.js",
+    ".": "./src/index.js",
+    "./client": "./src/client.js",
     "./locale/*.json": "./locale/*.json",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./icon": "./icon.svg",
+    "./icon": "./assets/icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
-    "host-vault.js",
-    "host-routes.js",
-    "host-tool.js",
-    "host-skill.js",
-    "client.js",
+    "src",
+    "assets",
     "cordis.patch.yml",
     "locale/*.json",
     "docs",
-    "icon.svg",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -69,5 +64,6 @@
         "@deepseek-ai/dsh-client-ui-slots"
       ]
     }
-  }
+  },
+  "main": "./src/index.js"
 }

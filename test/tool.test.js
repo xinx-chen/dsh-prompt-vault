@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { join } from 'node:path'
-import { PromptVault } from '../host-vault.js'
-import { createPromptVaultTool } from '../host-tool.js'
+import { PromptVault } from '../src/host-vault.js'
+import { createPromptVaultTool } from '../src/host-tool.js'
 import { withTempDir } from './helpers.js'
 
 test('tool covers the full lifecycle', async () => {
