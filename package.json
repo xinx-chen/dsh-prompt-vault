@@ -1,6 +1,6 @@
 {
   "name": "dsh-prompt-vault",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A local-first prompt vault for DeepSeek Harness: save reusable prompts, distill recurring patterns from conversations, search, tag, favorite, and copy.",
   "license": "MIT",
   "author": "xinx-chen",
@@ -27,10 +27,10 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/index.js && node --check src/host-vault.js && node --check src/host-routes.js && node --check src/host-tool.js && node --check src/host-skill.js && node --check src/client.js"
+    "check": "node --check index.js && node --check src/index.js && node --check src/host-vault.js && node --check src/host-routes.js && node --check src/host-tool.js && node --check src/host-skill.js && node --check src/client.js"
   },
   "exports": {
-    ".": "./src/index.js",
+    ".": "./index.js",
     "./client": "./src/client.js",
     "./locale/*.json": "./locale/*.json",
     "./cordis.patch.yml": "./cordis.patch.yml",
@@ -38,6 +38,7 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "index.js",
     "src",
     "assets",
     "cordis.patch.yml",
@@ -65,5 +66,5 @@
       ]
     }
   },
-  "main": "./src/index.js"
+  "main": "./index.js"
 }

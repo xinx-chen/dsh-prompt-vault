@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 — 2026-11-23
+
+Compatibility fix; no runtime behavior change.
+
+- Restored a package-root `index.js` shim that re-exports `src/index.js`.
+- Why: DSH's bundle loader imports `<package>/index.js` directly, ignoring `main` and `exports`. In 0.2.1 the src-only layout made activation fail with `ENOENT .../index.js`.
+- `main` and `exports["."]` now point to the shim; checks and packed files include it.
+
 ## 0.2.1 — 2026-11-23
 
 Structure-only release; no runtime behavior change.

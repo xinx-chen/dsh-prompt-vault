@@ -40,6 +40,7 @@ client.js  ──HTTP──→  /prompt-vault  ──→  host-routes.js
 ## 硬约束
 
 - 无运行时依赖、无构建步骤；Node 22+。
+- 包根 `index.js` 是 DSH 加载器的固定入口（它不读 `main`/`exports`），只做 `export * from './src/index.js'`，不要删。
 - 数据只写 `$DSH_HOME/storages/prompt-vault/vault.json`，不写项目目录。
 - 每次 mutation 返回完整 state；Client 不做局部合并。
 - 不读其他插件的 DOM，不 require 客户端 primitives。

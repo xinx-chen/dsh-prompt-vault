@@ -87,6 +87,7 @@ Source layout:
 
 | File | Responsibility |
 |---|---|
+| `index.js` | Package-root shim: DSH imports this path directly, so it re-exports `src/index.js` |
 | `src/index.js` | Host entry: route, tool, skill, prompt section |
 | `src/host-vault.js` | JSON storage, validation, atomic writes, corrupt recovery |
 | `src/host-routes.js` | Same-origin `/prompt-vault` route |
