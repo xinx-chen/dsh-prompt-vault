@@ -1,14 +1,31 @@
+/**
+ * Prompt Vault —— DSH bundle Client 侧。
+ *
+ * 这是纯 React + createElement（不用 JSX），通过 DSH 的 ModuleLoader 加载。
+ * 注册两个 slot：sidebar.panellist（侧栏书签图标）和 main（整页）。
+ *
+ * 架构要点：
+ *   - 状态单向流动：fetch 拉 state → setState → React 渲染
+ *   - 所有 mutation 调后端 action，返回完整 state 后整体覆盖
+ *   - 不读别的插件 DOM，只用 slots API
+ *   - 主题用 --dsw-alias-* CSS token，深浅色自动适配
+ */
+
 window.__ModuleLoader__.load({
   id: 'dsh-prompt-vault',
   factory(require) {
     const React = require('react')
     const h = React.createElement
 
+    // 命名空间和常量
     const NS = 'prompt-vault'
     const ID = 'prompt-vault'
     const API = '/prompt-vault'
 
-    /** Most specific language wins; unknown ids fall back to Chinese. */
+    /**
+     * 内置中文字典 —— 当宿主 locale 服务没提供翻译时兜底用。
+     * 文案分 key: zh/en 两套，t() 函数负责按当前语言取值。
+     */
     const DICT = {
       zh: {
         'panel.label': '提示词库',
@@ -72,16 +89,16 @@ window.__ModuleLoader__.load({
         'filter.all': 'All',
         'filter.favorite': '★ Favorites',
         'empty.title': 'No prompts saved yet',
-        'empty.body': 'Use “New prompt”, or just tell me: save that last prompt to my vault.',
+        'empty.body': 'Use "New prompt", or just tell me: save that last prompt to my vault.',
         'empty.action': 'Create the first one',
         'nomatch.title': 'No matching prompts',
-        'nomatch.body': 'Try another keyword, or clear the filter with “All”.',
+        'nomatch.body': 'Try another keyword, or clear the filter with "All".',
         'loading': 'Reading the vault…',
         'editor.new': 'New prompt',
         'editor.edit': 'Edit prompt',
         'editor.back': 'Back to list',
         'field.title': 'Title',
-        'field.titlePlaceholder': 'Name the skill, e.g. “Six clarifying questions”',
+        'field.titlePlaceholder': 'Name the skill, e.g. "Six clarifying questions"',
         'field.content': 'Prompt',
         'field.contentPlaceholder': 'Paste the whole prompt here; keep the 【】 placeholders',
         'field.tags': 'Tags',
@@ -106,7 +123,7 @@ window.__ModuleLoader__.load({
         'error.required': 'Title and prompt body are required',
         'error.titleOnly': 'Title is required',
         'error.contentOnly': 'Prompt body is required',
-        'confirm.delete': 'Delete “{title}”? This cannot be undone.',
+        'confirm.delete': 'Delete "{title}"? This cannot be undone.',
         'meta.uses': 'Used {count} times',
         'meta.updated': 'Updated {date}',
         'meta.source': 'Source: {source}',
@@ -114,36 +131,46 @@ window.__ModuleLoader__.load({
       },
     }
 
+    // 模块级变量：Client apply() 时赋值，让辅助函数能访问宿主上下文
     let clientCtx = null
     let boundTranslate = null
 
-    /** Active language from the Client locale service. */
+    /**
+     * 检测当前活跃语言。
+     * 优先读宿主 locale 服务，读不到就退回到内置中文字典。
+     */
     function activeLang() {
       try {
         const snapshot = clientCtx?.get?.('locale')?.getLocale?.()
         const active = typeof snapshot === 'string' ? snapshot : snapshot?.active
         if (typeof active === 'string' && active.toLowerCase().startsWith('en')) return 'en'
       } catch {
-        // A missing locale service still leaves the Chinese dictionary usable.
+        // 宿主没提供 locale 服务也没关系，中文字典兜底
       }
       return 'zh'
     }
 
-    /** Translate one key, with optional {name} interpolation. */
+    /**
+     * 翻译函数 —— 有宿主 translate 就用它（更准），没有就查内置字典。
+     * 支持 {name} 形式的变量插值，比如 t('confirm.delete', { title: 'xxx' })。
+     */
     function t(key, vars) {
       let value
+      // 优先用宿主的 translate（注册过的话）
       if (boundTranslate !== null) {
         try {
           const candidate = boundTranslate(key)
           if (typeof candidate === 'string' && candidate !== '' && candidate !== key) value = candidate
         } catch {
-          // Fall through to the bundled dictionary.
+          // 宿主 translate 失败就 fall through 到内置字典
         }
       }
+      // 查内置字典，找不到再兜底用 key 本身
       if (value === undefined) {
         const dict = DICT[activeLang()] ?? DICT.zh
         value = dict[key] ?? DICT.zh[key] ?? key
       }
+      // 变量插值：{title} → "xxx"
       if (vars !== undefined) {
         for (const [name, replacement] of Object.entries(vars)) {
           value = value.split(`{${name}}`).join(String(replacement))
@@ -152,7 +179,10 @@ window.__ModuleLoader__.load({
       return value
     }
 
-    /** Re-render when the language or a dictionary changes. */
+    /**
+     * 订阅宿主 locale 变化，触发重渲染。
+     * 宿主切换语言后，组件会自动刷新文案。
+     */
     function useLocaleRevision() {
       const [, force] = React.useState(0)
       React.useEffect(() => {
@@ -164,7 +194,7 @@ window.__ModuleLoader__.load({
       }, [])
     }
 
-    /** Parse a comma/space separated tag string. */
+    /** 解析标签输入 —— 支持逗号/顿号/空格分隔，去重后最多 16 个。 */
     function parseTags(value) {
       return [...new Set(
         String(value ?? '')
@@ -174,7 +204,7 @@ window.__ModuleLoader__.load({
       )].slice(0, 16)
     }
 
-    /** One locale-aware date. */
+    /** 格式化日期 —— 中文环境用 zh-CN，英文用 en。 */
     function formatDay(timestamp) {
       if (!Number.isFinite(timestamp)) return ''
       try {
@@ -184,12 +214,16 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** Clipboard write with a legacy fallback for locked-down webviews. */
+    /**
+     * 写入剪贴板 —— 优先用现代的 navigator.clipboard API，
+     * WebView 环境不支持时退回到 textarea + execCommand('copy') 老方案。
+     */
     async function writeClipboard(text) {
       if (navigator.clipboard !== undefined && typeof navigator.clipboard.writeText === 'function') {
         await navigator.clipboard.writeText(text)
         return
       }
+      // 兜底方案：创建隐藏 textarea，select 后 execCommand
       const area = document.createElement('textarea')
       area.value = text
       area.setAttribute('readonly', 'true')
@@ -202,7 +236,7 @@ window.__ModuleLoader__.load({
       if (!ok) throw new Error('copy failed')
     }
 
-    /** Sidebar glyph: a bookmark with a small plus. */
+    /** 侧栏图标 —— 书签形状，active 时填充品牌色。 */
     function PromptVaultIcon(props) {
       const size = Number.isFinite(props?.size) ? props.size : 20
       const active = props?.active === true
@@ -227,6 +261,10 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * 内联 CSS —— 全部用 --dsw-alias-* token，
+     * 这样深浅色主题自动适配，不需要写两套。
+     */
     const CSS = `
 .pv-root {
   height: 100%;
@@ -360,6 +398,7 @@ window.__ModuleLoader__.load({
 }
 `
 
+    /** 空状态组件 —— 用于"还没有任何提示词"和"筛选后没有匹配"两种场景。 */
     function EmptyState(props) {
       return h('div', { className: 'pv-empty' },
         h('svg', {
@@ -377,32 +416,59 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * 主页面组件 —— 整个提示词库的侧栏页面。
+     *
+     * 状态概览：
+     *   state       —— 后端返回的完整库快照（prompts + tags）
+     *   query/tag/favoriteOnly —— 前端筛选条件（本地过滤，不发给后端）
+     *   editing/draft —— 编辑表单状态
+     *   toast       —— 轻量通知（自动消失）
+     *
+     * 数据流：
+     *   load()  → fetch('/state') → setState(data) → 渲染
+     *   mutate() → fetch('/action', { action, ...payload }) → setState(data) → 渲染
+     */
     function PromptVaultPage() {
       useLocaleRevision()
-      const [state, setState] = React.useState(null)
-      const [loading, setLoading] = React.useState(true)
-      const [loadError, setLoadError] = React.useState('')
+
+      // === 核心状态 ===
+      const [state, setState] = React.useState(null)          // 后端返回的完整快照
+      const [loading, setLoading] = React.useState(true)     // 首次加载
+      const [loadError, setLoadError] = React.useState('')   // 加载错误
+
+      // === 筛选条件（前端本地过滤，不发给后端）===
       const [query, setQuery] = React.useState('')
       const [tag, setTag] = React.useState('')
       const [favoriteOnly, setFavoriteOnly] = React.useState(false)
-      const [expandedId, setExpandedId] = React.useState('')
-      const [editing, setEditing] = React.useState(false)
-      const [draft, setDraft] = React.useState(null)
-      const [saving, setSaving] = React.useState(false)
-      const [formError, setFormError] = React.useState('')
+
+      // === 卡片展开 / 编辑 ===
+      const [expandedId, setExpandedId] = React.useState('')  // 当前展开的卡片 id
+      const [editing, setEditing] = React.useState(false)     // 是否在编辑模式
+      const [draft, setDraft] = React.useState(null)          // 编辑表单的草稿
+      const [saving, setSaving] = React.useState(false)      // 保存中
+      const [formError, setFormError] = React.useState('')   // 表单校验错误
+
+      // === Toast 通知 ===
       const [toast, setToast] = React.useState('')
       const toastTimer = React.useRef(null)
 
+      /** 显示 toast 2.2 秒，自动消失。连续调用会重置计时器。 */
       const notify = React.useCallback((message) => {
         setToast(message)
         if (toastTimer.current !== null) clearTimeout(toastTimer.current)
         toastTimer.current = setTimeout(() => setToast(''), 2200)
       }, [])
 
+      // 组件卸载时清理 toast 计时器
       React.useEffect(() => () => {
         if (toastTimer.current !== null) clearTimeout(toastTimer.current)
       }, [])
 
+      /**
+       * 从后端拉完整库状态。
+       * 设 no-store 因为状态随时可能被 agent 或另一个浏览器窗口改。
+       */
       const load = React.useCallback(async () => {
         setLoading(true)
         setLoadError('')
@@ -418,10 +484,12 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+      // 组件挂载时首次加载
       React.useEffect(() => {
         load()
       }, [load])
 
+      // 窗口从后台切回前台时自动刷新 —— 可能 agent 在后台改了库
       React.useEffect(() => {
         const onVisible = () => {
           if (document.visibilityState === 'visible') load()
@@ -430,6 +498,10 @@ window.__ModuleLoader__.load({
         return () => document.removeEventListener('visibilitychange', onVisible)
       }, [load])
 
+      /**
+       * 向后端发变更请求。
+       * 后端返回完整新 state，直接覆盖前端 state —— 不做增量合并。
+       */
       const mutate = React.useCallback(async (action, payload) => {
         const res = await fetch(`${API}/action`, {
           method: 'POST',
@@ -443,12 +515,14 @@ window.__ModuleLoader__.load({
         return data
       }, [])
 
+      /** 关闭编辑器，清草稿和表单错误。 */
       const closeEditor = React.useCallback(() => {
         setEditing(false)
         setDraft(null)
         setFormError('')
       }, [])
 
+      // Esc 键关闭编辑器（保存中不能关，避免冲突）
       React.useEffect(() => {
         if (!editing) return undefined
         const onKey = (event) => {
@@ -458,12 +532,14 @@ window.__ModuleLoader__.load({
         return () => window.removeEventListener('keydown', onKey)
       }, [editing, saving, closeEditor])
 
+      /** 新建：空白草稿进入编辑模式。 */
       const startAdd = () => {
         setDraft({ id: '', title: '', content: '', tags: '', note: '', favorite: false })
         setFormError('')
         setEditing(true)
       }
 
+      /** 编辑：把已有数据填进草稿（标签用中文逗号方便用户输入）。 */
       const startEdit = (prompt) => {
         setDraft({
           id: prompt.id,
@@ -477,6 +553,11 @@ window.__ModuleLoader__.load({
         setEditing(true)
       }
 
+      /**
+       * 保存表单。
+       * draft.id 为空 → 新增；有值 → 更新。
+       * 校验在前端先做一遍（标题和正文必填），后端还有兜底校验。
+       */
       const save = async (event) => {
         if (event !== undefined) event.preventDefault()
         if (draft === null || saving) return
@@ -510,6 +591,7 @@ window.__ModuleLoader__.load({
         }
       }
 
+      /** 切换常用标记。 */
       const toggleFavorite = async (prompt) => {
         try {
           await mutate('favorite', { id: prompt.id, favorite: !prompt.favorite })
@@ -519,28 +601,36 @@ window.__ModuleLoader__.load({
         }
       }
 
+      /** 删除：先 confirm，再发 delete action。 */
       const remove = async (prompt) => {
         const ok = window.confirm(t('confirm.delete', { title: prompt.title }))
         if (!ok) return
         try {
           await mutate('delete', { id: prompt.id })
-          if (expandedId === prompt.id) setExpandedId('')
+          if (expandedId === prompt.id) setExpandedId('')  // 删了正在展开的卡片，收起
           notify(t('toast.deleted'))
         } catch (error) {
           notify(error instanceof Error ? error.message : String(error))
         }
       }
 
+      /**
+       * 复制正文到剪贴板。
+       * 成功后静默记录一次 use（不阻塞 UI，失败忽略）。
+       */
       const copy = async (prompt) => {
         try {
           await writeClipboard(prompt.content)
           notify(t('toast.copied'))
-          mutate('use', { id: prompt.id }).catch(() => {})
+          mutate('use', { id: prompt.id }).catch(() => {})  // 异步记录，不等待
         } catch {
           notify(t('toast.copyFailed'))
         }
       }
 
+      // —— 以下是渲染部分 ——
+
+      // 编辑模式优先渲染编辑器
       if (editing && draft !== null) {
         return h('div', { className: 'pv-root' },
           h('style', null, CSS),
@@ -602,8 +692,12 @@ window.__ModuleLoader__.load({
         )
       }
 
+      // —— 列表模式 ——
+
       const prompts = state?.prompts ?? []
       const tags = state?.tags ?? []
+
+      // 前端本地过滤：query 全文检索 + tag 标签 + favoriteOnly 常用
       const needle = query.trim().toLocaleLowerCase()
       const visible = prompts.filter((prompt) => {
         if (favoriteOnly && !prompt.favorite) return false
@@ -618,6 +712,7 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'pv-root' },
         h('style', null, CSS),
         h('div', { className: 'pv-inner' },
+          // 顶部：标题 + 刷新/新建按钮
           h('header', { className: 'pv-head' },
             h('div', null,
               h('h1', { className: 'pv-title' }, t('page.title')),
@@ -629,6 +724,7 @@ window.__ModuleLoader__.load({
             ),
           ),
 
+          // 加载错误提示
           loadError !== ''
             ? h('div', { className: 'pv-error' },
                 h('div', null, `${t('error.title')}：${loadError}`),
@@ -638,8 +734,10 @@ window.__ModuleLoader__.load({
               )
             : null,
 
+          // 首次加载中的状态
           loading && state === null ? h('div', { className: 'pv-status' }, t('loading')) : null,
 
+          // 搜索框 + 标签筛选 chip 组
           state !== null
             ? h('div', { className: 'pv-toolbar' },
                 h('input', {
@@ -657,6 +755,7 @@ window.__ModuleLoader__.load({
                     type: 'button', className: 'pv-chip', 'data-active': String(favoriteOnly),
                     onClick: () => { setFavoriteOnly(!favoriteOnly); setTag('') },
                   }, t('filter.favorite')),
+                  // 动态标签 chip，显示数量
                   tags.map((entry) => h('button', {
                     key: entry.tag,
                     type: 'button',
@@ -668,6 +767,7 @@ window.__ModuleLoader__.load({
               )
             : null,
 
+          // 全空提示（第一次用）
           state !== null && prompts.length === 0
             ? h(EmptyState, {
                 title: t('empty.title'),
@@ -677,15 +777,18 @@ window.__ModuleLoader__.load({
               })
             : null,
 
+          // 筛选后无匹配提示
           state !== null && prompts.length > 0 && visible.length === 0
             ? h(EmptyState, { title: t('nomatch.title'), body: t('nomatch.body') })
             : null,
 
+          // 卡片列表
           state !== null && visible.length > 0
             ? h('div', { className: 'pv-list' },
                 visible.map((prompt) => {
                   const open = expandedId === prompt.id
                   return h('article', { key: prompt.id, className: 'pv-card' },
+                    // 标题（可展开）+ 常用星标
                     h('div', { className: 'pv-card-head' },
                       h('button', {
                         type: 'button',
@@ -703,16 +806,20 @@ window.__ModuleLoader__.load({
                         onClick: () => toggleFavorite(prompt),
                       }, prompt.favorite ? '★' : '☆'),
                     ),
+                    // 标签行
                     prompt.tags.length > 0
                       ? h('div', { className: 'pv-tagline' },
                           prompt.tags.map((item) => h('span', { key: item, className: 'pv-tag' }, item)),
                         )
                       : null,
+                    // 正文（默认 4 行截断，展开后全显示）
                     h('p', { className: 'pv-content', 'data-open': String(open) }, prompt.content),
+                    // 底部：元信息 + 操作按钮
                     h('div', { className: 'pv-card-foot' },
                       h('div', { className: 'pv-meta' },
                         h('span', null, t('meta.updated', { date: formatDay(prompt.updatedAt) })),
                         prompt.uses > 0 ? h('span', null, t('meta.uses', { count: prompt.uses })) : null,
+                        // source 是 manual/手工 时不显示（避免 UI 噪音）
                         prompt.source !== '' && prompt.source !== '手工' && prompt.source !== 'manual'
                           ? h('span', null, t('meta.source', { source: prompt.source }))
                           : null,
@@ -728,15 +835,25 @@ window.__ModuleLoader__.load({
               )
             : null,
         ),
+        // 全局 toast（复制成功、保存成功等轻量提示）
         toast !== '' ? h('div', { className: 'pv-toast', role: 'status' }, toast) : null,
       )
     }
 
+    /**
+     * 返回 Client 模块对象 —— DSH ModuleLoader 要求的结构。
+     *
+     * inject：客户端侧声明需要的服务（slots 是必须的，locale 可选）
+     * apply：宿主调用时传入 ctx，这里做两件事：
+     *   1. 注册中文字典到宿主 locale 服务（让宿主也能翻译）
+     *   2. 注册两个 slot —— sidebar.panellist（侧栏图标）和 main（整页）
+     */
     return {
       inject: ['slots', 'locale'],
       apply(ctx) {
         clientCtx = ctx
 
+        // 注册字典到宿主 locale 服务（如果它存在且支持）
         const locale = ctx.get('locale')
         if (locale !== null && locale !== undefined && typeof locale.register === 'function') {
           try {
@@ -747,6 +864,7 @@ window.__ModuleLoader__.load({
           }
         }
 
+        // 注册侧栏图标 —— sidebar.panellist 是 list，id 唯一
         ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
           name: 'sidebar.panellist',
           id: ID,
@@ -754,6 +872,7 @@ window.__ModuleLoader__.load({
           label: () => t('panel.label'),
         }, PromptVaultIcon))
 
+        // 注册主页面 —— main 是 keyed，key 与侧栏 id 对上就能联动打开
         ctx.slots.inject('main', () => ctx.slots.register({
           name: 'main',
           key: ID,

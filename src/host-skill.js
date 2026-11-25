@@ -1,11 +1,30 @@
 /**
  * Agent-facing guidance for the Prompt Vault.
  *
- * The skill teaches the extraction rules; the one-paragraph prompt section keeps
- * the tool discoverable in ordinary conversation without loading the full skill.
+ * 给 AI agent 的"使用说明书"，分两层：
+ *
+ *   PROMPT_VAULT_SKILL —— 完整 skill，当用户明确说"收藏提示词"时加载。
+ *     详细教 agent 判断什么该存、什么不该存、怎么提炼。
+ *
+ *   PROMPT_VAULT_SECTION —— 短提示段，每轮对话都注入。
+ *     让 agent 随时记得有这个工具的存在，不会遗漏用户的收藏意图。
+ *
+ * 两层配合：平时靠 system prompt 触发，真到要干活时 skill 提供完整规则。
  */
 
-/** Loaded when the user asks to save, distill, or browse prompts. */
+/**
+ * 完整 skill 定义。
+ *
+ * DSH skill 格式：
+ *   name         —— 唯一标识
+ *   description  —— 一句话告诉 agent 这个 skill 是干嘛的
+ *   whenToUse    —— 触发表述（中英文都写了，支持中文用户）
+ *   source       —— 'runtime' 表示这是插件自带的 skill
+ *   content      —— Markdown 格式的完整指导，agent 加载后会读这段
+ *
+ * content 里的核心规则：只存可迁移的骨架，不存项目细节；先查重再新增；
+ * 一轮对话最多存一条。这些是"提炼质量"的护城河。
+ */
 export const PROMPT_VAULT_SKILL = {
   name: 'prompt-vault',
   description: 'Maintain the user\'s prompt vault: save a reusable prompt, or distill recurring, transferable prompt patterns from the conversation into prompt_vault after deduplication. 维护用户的提示词库：收藏提示词，或从对话中提炼可迁移的提问结构。',
@@ -55,7 +74,16 @@ Call \`action: "list"\` first. Show 5–10 entries ordered by favorite and recen
 - Deletion is irreversible. Never call remove unless the user explicitly asks to delete.`,
 }
 
-/** Short section that keeps the tool discoverable every turn. */
+/**
+ * 系统提示段 —— 每轮对话都注入。
+ *
+ * order: 900 —— 确保在 DSH 内置段之后、用户输入之前的位置。
+ * interpolate: false —— 这段是静态文本，不需要变量插值。
+ *
+ * 为什么要两层？因为 skill 是"按需加载"的 —— 如果 agent 判断不需要就不会读。
+ * 但用户可能只是随口说"帮我存一下"，skill 可能没被正确触发。
+ * 系统提示段像一个"常驻提醒"，确保 agent 不会忘记这个工具的存在。
+ */
 export const PROMPT_VAULT_SECTION = {
   name: 'prompt-vault',
   order: 900,
